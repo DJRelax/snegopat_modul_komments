@@ -81,12 +81,33 @@ function addMarker(markerType) {
     }    
 }
 
-function getSignature() {
-    var fmt = Settings['ФорматПодписи'];
-    //Павлюков С.Ю. - изменена строка: иначе дата должна была быть только последней
-    //var ptn = /%(.+?)(?:#(.+)){0,1}%/ig;
+//#Удаление // {Тишкин С.А. Более не актууально. Обрабатывается строка шаблона функцией getStringWithParams(StringWithParams)
+//function getSignature() {
+//    var fmt = Settings['ФорматПодписи'];
+//    //Павлюков С.Ю. - изменена строка: иначе дата должна была быть только последней
+//    //var ptn = /%(.+?)(?:#(.+)){0,1}%/ig;
+//    var ptn = /%(.+?)(?:#(.+^%)){0,1}%/ig;
+//    return fmt.replace(ptn, function (match, p1, p2, offset, s) {
+//        // p1 - имя управляющей конструкции.
+//        // p2 - параметр управляющей конструкции (для ДатаВремя).
+//		//Павлюков С.Ю. - добавлено условие с разбором даты и формата
+//		if (p1.match("(.+)#(.+)")){
+//			p1 = RegExp.$1;
+//			p2 = RegExp.$2;
+//		}
+//		if (!MarkerFormatStringParameters[p1]) {
+//			Message('В настройках подписи для авторского комментария встретилась неизвестная конструкция "' + p1 + '"');
+//			return p1;
+//		}
+//        return MarkerFormatStringParameters[p1].call(null, p2);
+//    });
+//}
+//#КонецУдаления // }Тишкин С.А.
+
+//#Вставка // {Тишкин С.А.
+function getStringWithParams(StringWithParams) {
     var ptn = /%(.+?)(?:#(.+^%)){0,1}%/ig;
-    return fmt.replace(ptn, function (match, p1, p2, offset, s) {
+    return StringWithParams.replace(ptn, function (match, p1, p2, offset, s) {
         // p1 - имя управляющей конструкции.
         // p2 - параметр управляющей конструкции (для ДатаВремя).
 		//Павлюков С.Ю. - добавлено условие с разбором даты и формата
@@ -101,20 +122,44 @@ function getSignature() {
         return MarkerFormatStringParameters[p1].call(null, p2);
     });
 }
+//#КонецВставки // }Тишкин С.А.
 
 function getStartComment(markerType) {
-    return "//" + Settings[markerType] + " " + getSignature();
+    //#Удаление // #Замена {Тишкин С.А.
+    //return "//" + Settings[markerType] + " " + getSignature();
+    //#КонецУдаления
+    //#Вставка
+    // Весь шаблон подписи начала блока (и конца) теперь можно размещать в поле соответсвующей настройки
+    //---- Заменено на: ----
+    return "//" +  getStringWithParams(Settings[markerType]);
+    //#КонецВставки // #КонецЗамены }Тишкин С.А.
 }
 
-function getEndComment() {
+//#Удаление // #Замена {Тишкин С.А.
+//function getEndComment() {
+//
+//    var endComment = "//" + Settings["ЗакрывающийМаркерБлока"];
+//    
+//    if (!Settings["НеДобавлятьСигнатуруПослеЗакрывающегоМаркера"])
+//        endComment += " " + getSignature();
+//
+//    return endComment;
+//}
+//#КонецУдаления
+//#Вставка
+// Получение текстов пропущено через обработку для получения значений полей
+// Учтена обработка отдельных полей закрывающих разные типы маркеров (Добавление(Вставка) / Удаление / Замена (Удаление+Вставка))
+//---- Заменено на: ----
+function getEndComment(markerType) {
 
-    var endComment = "//" + Settings["ЗакрывающийМаркерБлока"];
+    var endComment = "//" + (!Settings[markerType+"КонецБлока"] ? getStringWithParams(Settings["ЗакрывающийМаркерБлока"]) : getStringWithParams(Settings[markerType+"КонецБлока"]));
     
     if (!Settings["НеДобавлятьСигнатуруПослеЗакрывающегоМаркера"])
-        endComment += " " + getSignature();
+        endComment += " " + getStringWithParams(Settings['ФорматПодписи']);
 
     return endComment;
 }
+//#КонецВставки // #КонецЗамены }Тишкин С.А.
 
 function markLine(markerType, line) {
 
@@ -137,8 +182,16 @@ function markLine(markerType, line) {
         // Маркер "Изменено" для однострочника такой же как и для блока.
         var indent = StringUtils.getIndent(code);
         code = indent + getStartComment(markerType) + "\n";
-        code += prepareChangedBlock(line, indent) + "\n";            
-        code += indent + getEndComment() + "\n";            
+        //#Удаление // #Замена {Тишкин С.А.
+        //code += prepareChangedBlock(line, indent) + "\n";
+        //code += indent + getEndComment() + "\n";            
+        //#КонецУдаления
+        //#Вставка
+        // Замена функций на обработку строки шаблона
+        //---- Заменено на: ----
+        code += getStringWithParams(prepareChangedBlock(line, indent)) + "\n";
+        code += indent + getEndComment(markerType) + "\n";            
+        //#КонецВставки // #КонецЗамены }Тишкин С.А.
         break;
     }
         
@@ -153,7 +206,7 @@ function markBlock(markerType, block) {
     switch (markerType) 
     {
     case MarkerTypes.ADDED:
-        code += block + "\n"    
+        code += block + "\n";
         break;
         
     case MarkerTypes.REMOVED:
@@ -161,12 +214,19 @@ function markBlock(markerType, block) {
         break;
         
     case MarkerTypes.CHANGED:
-        code += prepareChangedBlock(block, indent) + "\n"
+        //#Удаление // #Замена {Тишкин С.А.
+        //code += prepareChangedBlock(block, indent) + "\n";
+        //#КонецУдаления
+        //#Вставка
+        // Замена функций на обработку строки шаблона
+        //---- Заменено на: ----
+        code += getStringWithParams(prepareChangedBlock(block, indent)) + "\n";
+        //#КонецВставки // #КонецЗамены }Тишкин С.А.
         break;
     }
     
     //Комментарий окончания изменений.
-    code += indent + getEndComment();
+    code += indent + getEndComment(markerType);
    
     return code;
 }
@@ -179,7 +239,36 @@ function prepareChangedBlock(block, indent) {
         code += commentBlock(block, indent) + "\n";
         
         if (Settings["РазделительКодаПриЗамене"])
-            code += indent + "//" + Settings["РазделительКодаПриЗамене"] + "\n";                
+        //#Удаление // #Замена {Тишкин С.А.
+        //    code += indent + "//" + Settings["РазделительКодаПриЗамене"] + "\n";
+        //#КонецУдаления
+        //#Вставка
+        // Разделитель кода при замене теперь тоже шаблон и обрабатывается соответственно
+        //---- Заменено на: ----
+        {
+            var replacingCodeSeparator = Settings["РазделительКодаПриЗамене"];
+            
+            var lines = new Array()
+            //lines = replacingCodeSeparator.split("\r\n|\r|\n");
+            lines = replacingCodeSeparator.split("\n");
+            rowsNumber = lines.length;
+            if (rowsNumber > 1)
+            {
+                var replacingCodeSeparator_="";
+                for(index = 0; index < rowsNumber; ++index)
+                {
+                    replacingCodeSeparator_ = replacingCodeSeparator_ + indent + "//" + lines[index] + "\n";
+                }
+                replacingCodeSeparator = replacingCodeSeparator_;
+            }
+            else
+            {
+                replacingCodeSeparator = indent + "//" + replacingCodeSeparator + "\n";
+            }
+            
+            code += replacingCodeSeparator;
+        }
+        //#КонецВставки // #КонецЗамены }Тишкин С.А.
     }
     
     code += block;
@@ -220,13 +309,30 @@ function getSettings() {
     s.Вставить("МаркерУдалено", "Удалено:");
     s.Вставить("МаркерИзменено", "Изменено:");
     s.Вставить("ЗакрывающийМаркерБлока", "/");
-    s.Вставить("РазделительКодаПриЗамене", "---- Заменено на: ----");    
+    s.Вставить("РазделительКодаПриЗамене", "---- Заменено на: ----");
     // Дополнительные настройки:
     s.Вставить("НеОставлятьКопиюКодаПриЗамене", false);
     s.Вставить("НеДобавлятьСигнатуруПослеЗакрывающегоМаркера", false);
+    //#Вставка // {Тишкин С.А.
+    // В обработку (Настройки) добавлены поля для закрывающих маркеров блоков
+    // Если плагин уже используется, то в настройках этих полей нет и они затираются считыванием настроек
+    // Нужно их заполнить ниже считывания настроек из хранилища
+    s.Вставить("МаркерДобавленоКонецБлока", "/");
+    s.Вставить("МаркерУдаленоКонецБлока", "/");
+    s.Вставить("МаркерИзмененоКонецБлока", "/");
+    //#КонецВставки // }Тишкин С.А.
     
     profileRoot.createValue(pflAuthorJs, s, pflSnegopat)    
     s = profileRoot.getValue(pflAuthorJs);
+    //#Вставка // {Тишкин С.А.
+    // В обработку (Настройки) добавлены поля для закрывающих маркеров блоков
+    // Если плагин уже используется, то в настройках этих полей нет и они затираются считыванием настроек
+    // Нужно их заполнить ниже считывания настроек из хранилища
+    if(!s.Свойство("МаркерДобавленоКонецБлока")) {
+        s.Вставить("МаркерДобавленоКонецБлока", "/");
+        s.Вставить("МаркерУдаленоКонецБлока", "/");
+        s.Вставить("МаркерИзмененоКонецБлока", "/");}
+    //#КонецВставки // }Тишкин С.А.
     
     return s;
 }
